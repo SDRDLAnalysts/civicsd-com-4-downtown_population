@@ -1,0 +1,69 @@
+TITLE: San Diego Business Estimates
+
+Data related to San Diego businesses, maping them to census geographies and neighborhoods. 
+
+UID: 9adc83cb-81ec-4c38-b48c-f8e42a4c8aae
+DATABASE: sqlite:sd_businesses.db 
+REMOTE: s3://warehouse.sandiegodata.org/test/civicsd.org#compress
+LOCAL: civicsd.org
+UID: 9adc83cb-81ec-4c38-b48c-f8e42a4c8aae
+
+ACCESS: public
+
+PARTITIONS:
+
+sandiego.gov-businesses-casnd-orig-businesses-1.0.5
+sandiego.gov-businesses-casnd-orig-dstk_addresses-1.0.5
+sandiego.gov-businesses-casnd-orig-bus_block_cross-1.0.5
+
+civicsd.org-neighborhoods-neighborhoods-geo-0.0.1
+
+clarinova.com-places-casnd-blocks-geo-0.1.7
+clarinova.com-places-casnd-crosswalk-0.1.7
+
+
+EXTRACT: business_locations as csv TO business_locations.csv
+EXTRACT: neighborhood_demo AS csv to neighborhood_demo.csv
+
+MVIEW: business_locations
+
+SELECT * 
+FROM d02R_businesses AS bus
+LEFT JOIN d02R_dstk_addresses AS  dstk ON dstk.businesses_id = bus.id
+
+VIEW: neighborhood_area
+
+SELECT 
+neighborhood, neighborhood_places_id, neighborhood_name, 
+sum(hu100) AS households,
+sum(pop100) AS population, 
+sum(arealand) as area
+FROM d00v_crosswalk AS place_cross
+LEFT JOIN d00v_blocks AS blocks on blocks.geoid = place_cross.geoid
+GROUP BY neighborhood
+
+DOC: 
+
+The `neighborhood_area` view does this, that and the other. 
+
+VIEW: linked_businesses
+
+SELECT * 
+FROM d02R_businesses AS bus
+LEFT JOIN d02R_bus_block_cross AS bcross ON bcross.businesses_id  = bus.id
+LEFT JOIN d00v_crosswalk AS pcross ON pcross.geoid = bcross.geoid
+WHERE neighborhood is not NULL
+
+VIEW: neighborhood_demo
+
+SELECT 
+community, community_name, 
+linked_businesses.neighborhood, linked_businesses.neighborhood_places_id, linked_businesses.neighborhood_name, 
+count(*) AS businesses, households, population, area
+FROM linked_businesses
+JOIN neighborhood_area ON neighborhood_area.neighborhood = linked_businesses.neighborhood
+GROUP BY linked_businesses.neighborhood
+ORDER BY community, area desc
+
+
+
